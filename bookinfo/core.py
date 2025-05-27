@@ -4,6 +4,12 @@ import logging
 from typing import Optional, Dict, Any, List
 from .utils import extract_isbns, clean_title_from_filename, is_pdf, is_epub, validate_file_path, validate_api_key
 from tenacity import retry, stop_after_attempt, wait_exponential
+from dotenv import load_dotenv
+import requests
+from PIL import Image
+import io
+
+load_dotenv()
 
 # PDF/EPUB imports
 import pypdf
@@ -14,6 +20,11 @@ from googleapiclient.errors import HttpError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("bookinfo")
+
+logging.getLogger("pypdf").setLevel(logging.ERROR)
+logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.WARNING)
+
+api_key = os.getenv("GOOGLE_BOOKS_API_KEY")
 
 OUTPUT_FIELDS = ["isbn_10", "isbn_13", "title", "subtitle", "authors_or_editors", "year_of_publication", "source"]
 
@@ -83,7 +94,7 @@ def extract_text_from_pdf(file_path: str, max_pages: int = 5) -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=10))
-def query_google_books_api(query: str, api_key: str) -> Optional[List[Dict[str, Any]]]:
+def query_google_books_api(query: str, api_key: str = api_key) -> Optional[List[Dict[str, Any]]]:
     try:
         service = build("books", "v1", developerKey=api_key)
         request = service.volumes().list(q=query, maxResults=5)
@@ -117,7 +128,7 @@ def parse_google_books_item(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_book_info(file_path: str, api_key: str) -> Dict[str, Any]:
+def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
     # Input validation
     if not validate_file_path(file_path):
         logger.error(f"Invalid file path or unsupported file type: {file_path}")
@@ -203,3 +214,49 @@ def get_book_info(file_path: str, api_key: str) -> Dict[str, Any]:
     # If nothing found
     logger.info("No metadata found for file.")
     return default_output(source="not_found")
+
+
+def get_google_books_image_url(query: str, api_key: str) -> Optional[str]:
+    """
+    Returns the thumbnail image URL from the first Google Books API result for the query.
+    """
+    items = query_google_books_api(query, api_key)
+    if items:
+        volume = items[0].get("volumeInfo", {})
+        image_links = volume.get("imageLinks", {})
+        # Prefer 'large' or 'thumbnail'
+        return image_links.get("large") or image_links.get("thumbnail")
+    return None
+
+
+def extract_first_page_image_pdf(file_path: str) -> Optional[Image.Image]:
+    """
+    Returns a PIL Image of the first page of a PDF file.
+    """
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            if pdf.pages:
+                page = pdf.pages[0]
+                # Render as image (requires pdfplumber[image] and Pillow)
+                return page.to_image(resolution=200).original
+    except Exception as e:
+        logger.warning(f"Failed to extract first page image from PDF: {e}")
+    return None
+
+
+def extract_cover_image_epub(file_path: str) -> Optional[bytes]:
+    """
+    Returns the cover image bytes from an EPUB file, if available.
+    """
+    try:
+        book = epub.read_epub(file_path)
+        for item in book.get_items():
+            if item.get_type() == epub.ITEM_COVER:
+                return item.get_content()
+        # Fallback: look for first image
+        for item in book.get_items():
+            if item.get_type() == epub.ITEM_IMAGE:
+                return item.get_content()
+    except Exception as e:
+        logger.warning(f"Failed to extract cover image from EPUB: {e}")
+    return None

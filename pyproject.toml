@@ -7,9 +7,12 @@ requires-python = ">=3.13"
 dependencies = [
     "ebooklib>=0.19",
     "google-api-python-client>=2.170.0",
+    "ipykernel>=6.29.5",
     "pdfplumber>=0.11.6",
+    "pillow>=11.2.1",
     "pypdf>=5.5.0",
     "pytest>=8.3.5",
+    "python-dotenv>=1.1.0",
     "setuptools>=80.9.0",
     "tenacity>=9.1.2",
 ]
