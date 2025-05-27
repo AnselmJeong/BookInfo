@@ -1,0 +1,205 @@
+import os
+import json
+import logging
+from typing import Optional, Dict, Any, List
+from .utils import extract_isbns, clean_title_from_filename, is_pdf, is_epub, validate_file_path, validate_api_key
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+# PDF/EPUB imports
+import pypdf
+import pdfplumber
+from ebooklib import epub
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("bookinfo")
+
+OUTPUT_FIELDS = ["isbn_10", "isbn_13", "title", "subtitle", "authors_or_editors", "year_of_publication", "source"]
+
+
+def default_output(source: str) -> Dict[str, Any]:
+    return {
+        "isbn_10": None,
+        "isbn_13": None,
+        "title": None,
+        "subtitle": None,
+        "authors_or_editors": None,
+        "year_of_publication": None,
+        "source": source,
+    }
+
+
+def extract_metadata_from_pdf(file_path: str) -> Dict[str, Any]:
+    try:
+        with open(file_path, "rb") as f:
+            reader = pypdf.PdfReader(f)
+            info = reader.metadata
+            meta = {}
+            if info:
+                meta["title"] = info.title if info.title else None
+                meta["author"] = info.author if info.author else None
+            return meta
+    except Exception as e:
+        logger.warning(f"Failed to extract PDF metadata: {e}")
+        return {}
+
+
+def extract_metadata_from_epub(file_path: str) -> Dict[str, Any]:
+    try:
+        book = epub.read_epub(file_path)
+        meta = {}
+        # ISBN
+        identifiers = book.get_metadata("DC", "identifier")
+        for id_tuple in identifiers:
+            val = id_tuple[0]
+            if val and (len(val) == 10 or len(val) == 13):
+                meta["isbn"] = val
+        # Title
+        titles = book.get_metadata("DC", "title")
+        if titles:
+            meta["title"] = titles[0][0]
+        # Author
+        creators = book.get_metadata("DC", "creator")
+        if creators:
+            meta["author"] = creators[0][0]
+        return meta
+    except Exception as e:
+        logger.warning(f"Failed to extract EPUB metadata: {e}")
+        return {}
+
+
+def extract_text_from_pdf(file_path: str, max_pages: int = 5) -> str:
+    text = ""
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                if i >= max_pages:
+                    break
+                text += page.extract_text() or ""
+    except Exception as e:
+        logger.warning(f"Failed to extract text from PDF: {e}")
+    return text
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=2, max=10))
+def query_google_books_api(query: str, api_key: str) -> Optional[List[Dict[str, Any]]]:
+    try:
+        service = build("books", "v1", developerKey=api_key)
+        request = service.volumes().list(q=query, maxResults=5)
+        response = request.execute()
+        items = response.get("items", [])
+        return items
+    except HttpError as e:
+        logger.error(f"Google Books API error: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error querying Google Books API: {e}")
+        return None
+
+
+def parse_google_books_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    volume = item.get("volumeInfo", {})
+    industry_ids = volume.get("industryIdentifiers", [])
+    isbn_10 = isbn_13 = None
+    for id_obj in industry_ids:
+        if id_obj.get("type") == "ISBN_10":
+            isbn_10 = id_obj.get("identifier")
+        elif id_obj.get("type") == "ISBN_13":
+            isbn_13 = id_obj.get("identifier")
+    return {
+        "isbn_10": isbn_10,
+        "isbn_13": isbn_13,
+        "title": volume.get("title"),
+        "subtitle": volume.get("subtitle"),
+        "authors_or_editors": volume.get("authors"),
+        "year_of_publication": str(volume.get("publishedDate"))[:4] if volume.get("publishedDate") else None,
+    }
+
+
+def get_book_info(file_path: str, api_key: str) -> Dict[str, Any]:
+    # Input validation
+    if not validate_file_path(file_path):
+        logger.error(f"Invalid file path or unsupported file type: {file_path}")
+        return default_output(source="invalid_file")
+    if not validate_api_key(api_key):
+        logger.error("Invalid or missing Google Books API key.")
+        return default_output(source="invalid_api_key")
+
+    # 1. ISBN in Filename
+    filename = os.path.basename(file_path)
+    isbn10s, isbn13s = extract_isbns(filename)
+    if isbn13s or isbn10s:
+        isbn = isbn13s[0] if isbn13s else isbn10s[0]
+        logger.info(f"Found ISBN in filename: {isbn}")
+        items = query_google_books_api(f"isbn:{isbn}", api_key)
+        if items:
+            result = parse_google_books_item(items[0])
+            result["source"] = "isbn_filename"
+            return result
+
+    # 2. Metadata in File
+    meta = {}
+    if is_pdf(file_path):
+        meta = extract_metadata_from_pdf(file_path)
+    elif is_epub(file_path):
+        meta = extract_metadata_from_epub(file_path)
+    # Try ISBN in metadata
+    meta_text = " ".join(str(v) for v in meta.values() if v)
+    isbn10s, isbn13s = extract_isbns(meta_text)
+    if isbn13s or isbn10s:
+        isbn = isbn13s[0] if isbn13s else isbn10s[0]
+        logger.info(f"Found ISBN in file metadata: {isbn}")
+        items = query_google_books_api(f"isbn:{isbn}", api_key)
+        if items:
+            result = parse_google_books_item(items[0])
+            result["source"] = "file_metadata"
+            return result
+    # Try title/author in metadata
+    if meta.get("title"):
+        query = meta["title"]
+        if meta.get("author"):
+            query += f" {meta['author']}"
+        logger.info(f"Searching Google Books API with metadata title/author: {query}")
+        items = query_google_books_api(query, api_key)
+        if items:
+            result = parse_google_books_item(items[0])
+            result["source"] = "file_metadata"
+            return result
+
+    # 3. Filename as Title
+    title = clean_title_from_filename(filename)
+    if title:
+        logger.info(f"Using cleaned filename as title: {title}")
+        items = query_google_books_api(title, api_key)
+        if items:
+            result = parse_google_books_item(items[0])
+            result["source"] = "filename_title"
+            return result
+
+    # 4. Text Extraction from PDF (if PDF)
+    if is_pdf(file_path):
+        text = extract_text_from_pdf(file_path)
+        isbn10s, isbn13s = extract_isbns(text)
+        if isbn13s or isbn10s:
+            isbn = isbn13s[0] if isbn13s else isbn10s[0]
+            logger.info(f"Found ISBN in PDF text: {isbn}")
+            items = query_google_books_api(f"isbn:{isbn}", api_key)
+            if items:
+                result = parse_google_books_item(items[0])
+                result["source"] = "pdf_text"
+                return result
+        # Try extracting title/author from text (very basic heuristic)
+        lines = text.splitlines()
+        for line in lines[:20]:
+            if len(line.strip()) > 5 and not any(c.isdigit() for c in line):
+                logger.info(f"Trying line as title from PDF text: {line.strip()}")
+                items = query_google_books_api(line.strip(), api_key)
+                if items:
+                    result = parse_google_books_item(items[0])
+                    result["source"] = "pdf_text"
+                    return result
+
+    # If nothing found
+    logger.info("No metadata found for file.")
+    return default_output(source="not_found")
