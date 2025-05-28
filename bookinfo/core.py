@@ -261,19 +261,32 @@ def extract_first_page_image_pdf(file_path: str) -> Optional[Image.Image]:
     return None
 
 
-def extract_cover_image_epub(file_path: str) -> Optional[bytes]:
+def extract_cover_image_epub(epub_path: str) -> bytes | None:
     """
-    Returns the cover image bytes from an EPUB file, if available.
+    Extracts the cover image from an EPUB file and returns it as bytes.
+    Returns None if no cover image is found.
     """
-    try:
-        book = epub.read_epub(file_path)
-        for item in book.get_items():
-            if item.get_type() == epub.ITEM_COVER:
-                return item.get_content()
-        # Fallback: look for first image
-        for item in book.get_items():
-            if item.get_type() == epub.ITEM_IMAGE:
-                return item.get_content()
-    except Exception as e:
-        logger.warning(f"Failed to extract cover image from EPUB: {e}")
+    from ebooklib import epub
+
+    book = epub.read_epub(epub_path)
+    cover_id = None
+
+    # Step 1: Try to find the cover id from the OPF metadata
+    for meta, attrs in book.get_metadata("OPF", "cover"):
+        if attrs.get("name") == "cover" and "content" in attrs:
+            cover_id = attrs["content"]
+            break
+
+    # Step 2: If cover_id found, get the corresponding item
+    if cover_id:
+        item = book.get_item_with_id(cover_id)
+        if item:
+            return item.get_content()
+    else:
+        # Fallback: Try to find the first image in the manifest
+        import ebooklib
+
+        for item in book.get_items_of_type(ebooklib.ITEM_IMAGE):
+            return item.get_content()
+
     return None
