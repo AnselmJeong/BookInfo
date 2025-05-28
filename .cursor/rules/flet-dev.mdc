@@ -1,0 +1,35 @@
+---
+description: 
+globs: *.py
+alwaysApply: false
+---
+1. **Use Up-to-Date Information for Flet Framework:**
+   - Always rely on the most recent documentation and practices for the Flet framework as of the current date, May 28, 2025.
+   - Base all suggestions on the official Flet documentation (https://flet.dev/docs) and any relevant updates or changes that may have occurred up to this date.
+   - If there are breaking changes, new features, or deprecated functions in Flet, ensure the code reflects the latest stable version compatible with Python 3.12+.
+
+2. **Avoid Hallucination of Syntax or Features:**
+   - Do not invent or hallucinate any Flet functions, methods, properties, or syntax that are not explicitly documented or supported by the Flet framework as of May 28, 2025.
+   - If unsure about a specific Flet feature or implementation, acknowledge the limitation and suggest consulting the official Flet documentation or provide a workaround using confirmed, existing functionality.
+   - For external packages (e.g., `bookinfo`), assume only the described functionality (e.g., fetching book info from Google Books API) and do not hallucinate additional methods or behavior beyond what is specified.
+
+3. **Adhere to Python 3.12+ Syntax and Best Practices:**
+   - Write all code using Python 3.12 or later, leveraging modern syntax and features such as type hints (using `typing` module or built-in types), pattern matching (`match`/`case`), and other enhancements introduced in Python 3.12.
+   - Use modern Python conventions, such as f-strings for string formatting, and avoid outdated practices (e.g., using `%` or `.format()` for strings).
+   - Ensure code is clean, readable, and follows PEP 8 style guidelines.
+   - Include type hints for function arguments and return types where applicable to improve code clarity and maintainability.
+
+4. **Ensure Compatibility with macOS Desktop App Development:**
+   - Ensure the code is compatible with macOS for desktop app development using Flet.
+   - Handle file system operations (e.g., directory selection, file renaming) in a way that works seamlessly on macOS, using Python’s `pathlib` for cross-platform path handling.
+   - If Flet has specific requirements or limitations for macOS (e.g., directory picker behavior), ensure the implementation respects those constraints.
+
+5. **Provide Accurate and Functional Code:**
+   - Ensure all Flet components (e.g., buttons, cards, images, columns) are implemented correctly as per the latest Flet API.
+   - Test the logic mentally to ensure the app’s functionality (e.g., directory selection, file listing, book info retrieval, file renaming) works as described in the requirements.
+   - Handle edge cases (e.g., empty directories, missing book info, file access errors) gracefully with appropriate error messages or fallback behavior.
+
+6. **Documentation and Comments:**
+   - Include concise comments in the code to explain key sections, especially for complex logic (e.g., book info retrieval, file renaming).
+   - If a specific Flet feature is used in a non-obvious way, reference the relevant part of the Flet documentation (e.g., “This uses Flet’s FilePicker as described in the docs”).
+
