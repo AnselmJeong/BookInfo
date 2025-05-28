@@ -118,6 +118,8 @@ def parse_google_books_item(item: Dict[str, Any]) -> Dict[str, Any]:
             isbn_10 = id_obj.get("identifier")
         elif id_obj.get("type") == "ISBN_13":
             isbn_13 = id_obj.get("identifier")
+    image_links = volume.get("imageLinks", {})
+    cover_image_url = image_links.get("large") or image_links.get("thumbnail") or image_links.get("smallThumbnail")
     return {
         "isbn_10": isbn_10,
         "isbn_13": isbn_13,
@@ -125,19 +127,21 @@ def parse_google_books_item(item: Dict[str, Any]) -> Dict[str, Any]:
         "subtitle": volume.get("subtitle"),
         "authors_or_editors": volume.get("authors"),
         "year_of_publication": str(volume.get("publishedDate"))[:4] if volume.get("publishedDate") else None,
+        "cover_image_url": cover_image_url,
     }
 
 
-def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
-    # Input validation
+def get_books_info_list(file_path: str, api_key: str = api_key) -> List[Dict[str, Any]]:
+    """
+    Returns a list of up to 10 matching book info dicts if ISBN is found, otherwise a single best match as before.
+    """
     if not validate_file_path(file_path):
         logger.error(f"Invalid file path or unsupported file type: {file_path}")
-        return default_output(source="invalid_file")
+        return [default_output(source="invalid_file")]
     if not validate_api_key(api_key):
         logger.error("Invalid or missing Google Books API key.")
-        return default_output(source="invalid_api_key")
+        return [default_output(source="invalid_api_key")]
 
-    # 1. ISBN in Filename
     filename = os.path.basename(file_path)
     isbn10s, isbn13s = extract_isbns(filename)
     if isbn13s or isbn10s:
@@ -145,17 +149,20 @@ def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
         logger.info(f"Found ISBN in filename: {isbn}")
         items = query_google_books_api(f"isbn:{isbn}", api_key)
         if items:
-            result = parse_google_books_item(items[0])
-            result["source"] = "isbn_filename"
-            return result
+            results = []
+            for item in items[:10]:
+                result = parse_google_books_item(item)
+                result["source"] = "isbn_filename"
+                results.append(result)
+            return results
+        else:
+            return [default_output(source="isbn_filename")]
 
-    # 2. Metadata in File
     meta = {}
     if is_pdf(file_path):
         meta = extract_metadata_from_pdf(file_path)
     elif is_epub(file_path):
         meta = extract_metadata_from_epub(file_path)
-    # Try ISBN in metadata
     meta_text = " ".join(str(v) for v in meta.values() if v)
     isbn10s, isbn13s = extract_isbns(meta_text)
     if isbn13s or isbn10s:
@@ -163,10 +170,14 @@ def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
         logger.info(f"Found ISBN in file metadata: {isbn}")
         items = query_google_books_api(f"isbn:{isbn}", api_key)
         if items:
-            result = parse_google_books_item(items[0])
-            result["source"] = "file_metadata"
-            return result
-    # Try title/author in metadata
+            results = []
+            for item in items[:10]:
+                result = parse_google_books_item(item)
+                result["source"] = "file_metadata"
+                results.append(result)
+            return results
+        else:
+            return [default_output(source="file_metadata")]
     if meta.get("title"):
         query = meta["title"]
         if meta.get("author"):
@@ -176,9 +187,10 @@ def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
         if items:
             result = parse_google_books_item(items[0])
             result["source"] = "file_metadata"
-            return result
+            return [result]
+        else:
+            return [default_output(source="file_metadata")]
 
-    # 3. Filename as Title
     title = clean_title_from_filename(filename)
     if title:
         logger.info(f"Using cleaned filename as title: {title}")
@@ -186,9 +198,10 @@ def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
         if items:
             result = parse_google_books_item(items[0])
             result["source"] = "filename_title"
-            return result
+            return [result]
+        else:
+            return [default_output(source="filename_title")]
 
-    # 4. Text Extraction from PDF (if PDF)
     if is_pdf(file_path):
         text = extract_text_from_pdf(file_path)
         isbn10s, isbn13s = extract_isbns(text)
@@ -197,10 +210,14 @@ def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
             logger.info(f"Found ISBN in PDF text: {isbn}")
             items = query_google_books_api(f"isbn:{isbn}", api_key)
             if items:
-                result = parse_google_books_item(items[0])
-                result["source"] = "pdf_text"
-                return result
-        # Try extracting title/author from text (very basic heuristic)
+                results = []
+                for item in items[:10]:
+                    result = parse_google_books_item(item)
+                    result["source"] = "pdf_text"
+                    results.append(result)
+                return results
+            else:
+                return [default_output(source="pdf_text")]
         lines = text.splitlines()
         for line in lines[:20]:
             if len(line.strip()) > 5 and not any(c.isdigit() for c in line):
@@ -209,11 +226,11 @@ def get_book_info(file_path: str, api_key: str = api_key) -> Dict[str, Any]:
                 if items:
                     result = parse_google_books_item(items[0])
                     result["source"] = "pdf_text"
-                    return result
+                    return [result]
+        return [default_output(source="pdf_text")]
 
-    # If nothing found
     logger.info("No metadata found for file.")
-    return default_output(source="not_found")
+    return [default_output(source="not_found")]
 
 
 def get_google_books_image_url(query: str, api_key: str) -> Optional[str]:

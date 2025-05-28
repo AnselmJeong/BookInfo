@@ -1,7 +1,7 @@
 import argparse
 import json
 import sys
-from .core import get_book_info
+from .core import get_books_info_list
 
 
 def main():
@@ -11,7 +11,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        result = get_book_info(args.file_path)
+        result = get_books_info_list(args.file_path)
         print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
