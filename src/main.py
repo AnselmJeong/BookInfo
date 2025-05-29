@@ -3,42 +3,11 @@ from pathlib import Path
 import os
 import io
 from PIL import Image
-import sys
-import logging
 from core import (
     get_books_info_list,
     extract_cover_image_epub,
     extract_first_page_image_pdf,
 )
-
-# logging.basicConfig(
-#     filename="app_error.log",
-#     filemode="a",
-#     level=logging.DEBUG,  # or logging.INFO for less verbosity
-#     format="%(asctime)s %(levelname)s %(message)s",
-# )
-
-
-# # Also log uncaught exceptions
-# def log_uncaught_exceptions(exctype, value, tb):
-#     logging.critical("Uncaught exception", exc_info=(exctype, value, tb))
-
-
-# sys.excepthook = log_uncaught_exceptions
-
-# logging.getLogger("pdfminer").setLevel(logging.ERROR)
-
-# Ensure the bookinfo package in the current directory can be imported
-# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
-
-# try:
-#     import bookinfo
-# except ImportError:
-#     print("Error: The 'bookinfo' package was not found in the current directory.")
-#     print(
-#         "Please ensure 'main.py' (or your entry script) is in the 'src' directory and the 'bookinfo' package is in the project root."
-#     )
-#     sys.exit(1)
 
 # --- Ensure assets directory exists ---
 ASSETS_DIR = Path(__file__).parent / "assets"
@@ -156,33 +125,6 @@ def main(page: ft.Page):
     # --- Application State ---
     current_files_in_dir = []
     current_file_processing_index = 0
-
-    # Attempt to get API key from environment
-    # This key is used by bookinfo.get_books_info_list implicitly if not passed
-    # or can be passed explicitly if your bookinfo functions require it.
-    # For this example, we assume bookinfo.get_books_info_list can use an env var
-    # or that the API key is passed as an argument to it.https://flet.dev/docs/cookbook/file-picker-and-uploads/
-    # If GOOGLE_BOOKS_API_KEY is required by bookinfo, ensure it's set.
-    # For now, we'll just try to load it, and bookinfo will handle if it's missing.
-    api_key_env = os.getenv("GOOGLE_BOOKS_API_KEY")
-    if not api_key_env:
-        page.banner = ft.Banner(
-            bgcolor=ft.Colors.AMBER_100,
-            leading=ft.Icon(
-                ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.AMBER, size=40
-            ),
-            content=ft.Text(
-                "Warning: GOOGLE_BOOKS_API_KEY environment variable not set. Book info retrieval might fail."
-            ),
-            actions=[
-                ft.TextButton(
-                    "OK",
-                    on_click=lambda _: setattr(page.banner, "open", False)
-                    or page.update(),
-                )
-            ],
-        )
-        page.banner.open = True
 
     # --- UI Elements ---
     # Left Column
