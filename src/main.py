@@ -500,6 +500,8 @@ def main(page: ft.Page):
     )
     page.update()
 
+    input("Press Enter to exit...")
+
 
 if __name__ == "__main__":
     try:
