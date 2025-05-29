@@ -1,7 +1,6 @@
-pypdf==5.5.0
-pdfplumber[image]>=0.10.0
-ebooklib>=0.18
-google-api-python-client>=2.0.0
-requests>=2.0.0
-tenacity>=8.0.0
-Pillow>=8.0.0 
+Pillow>=11.2.1
+ebooklib>=0.19
+pdfplumber>=0.11.6
+pypdf>=5.5.0
+pytest>=8.3.5
+tenacity>=9.1.2
