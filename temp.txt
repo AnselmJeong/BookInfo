@@ -1,1 +1,0 @@
-clicking select directory button do not show open dialog. Consult this page @Web @https://flet.dev/docs/cookbook/file-picker-and-uploads/

@@ -1,44 +1,50 @@
 import flet as ft
 from pathlib import Path
-import tempfile
 import os
 import io
 from PIL import Image
 import sys
 import logging
-
-logging.basicConfig(
-    filename="app_error.log",
-    filemode="a",
-    level=logging.DEBUG,  # or logging.INFO for less verbosity
-    format="%(asctime)s %(levelname)s %(message)s",
+from core import (
+    get_books_info_list,
+    extract_cover_image_epub,
+    extract_first_page_image_pdf,
 )
 
+# logging.basicConfig(
+#     filename="app_error.log",
+#     filemode="a",
+#     level=logging.DEBUG,  # or logging.INFO for less verbosity
+#     format="%(asctime)s %(levelname)s %(message)s",
+# )
 
-# Also log uncaught exceptions
-def log_uncaught_exceptions(exctype, value, tb):
-    logging.critical("Uncaught exception", exc_info=(exctype, value, tb))
+
+# # Also log uncaught exceptions
+# def log_uncaught_exceptions(exctype, value, tb):
+#     logging.critical("Uncaught exception", exc_info=(exctype, value, tb))
 
 
-sys.excepthook = log_uncaught_exceptions
+# sys.excepthook = log_uncaught_exceptions
 
-logging.getLogger("pdfminer").setLevel(logging.ERROR)
+# logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 # Ensure the bookinfo package in the current directory can be imported
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
 
-try:
-    import bookinfo
-except ImportError:
-    print("Error: The 'bookinfo' package was not found in the current directory.")
-    print(
-        "Please ensure 'main.py' (or your entry script) is in the 'src' directory and the 'bookinfo' package is in the project root."
-    )
-    sys.exit(1)
+# try:
+#     import bookinfo
+# except ImportError:
+#     print("Error: The 'bookinfo' package was not found in the current directory.")
+#     print(
+#         "Please ensure 'main.py' (or your entry script) is in the 'src' directory and the 'bookinfo' package is in the project root."
+#     )
+#     sys.exit(1)
 
 # --- Ensure assets directory exists ---
 ASSETS_DIR = Path(__file__).parent / "assets"
-ASSETS_DIR.mkdir(exist_ok=True)
+
+THUMBNAIL_DIR = Path("/Users/anselm/.BookInfo/assets")
+THUMBNAIL_DIR.mkdir(exist_ok=True)
 
 
 # Helper function to extract first page image and save to a temporary file
@@ -54,9 +60,9 @@ def extract_first_page_image(file_path_str: str) -> str | None:
         pil_image = None
 
         if ext == ".pdf":
-            pil_image = bookinfo.core.extract_first_page_image_pdf(file_path_str)
+            pil_image = extract_first_page_image_pdf(file_path_str)
         elif ext == ".epub":
-            image_bytes = bookinfo.core.extract_cover_image_epub(file_path_str)
+            image_bytes = extract_cover_image_epub(file_path_str)
             if image_bytes:
                 pil_image = Image.open(io.BytesIO(image_bytes))
 
@@ -69,7 +75,7 @@ def extract_first_page_image(file_path_str: str) -> str | None:
 
             # Save to assets directory with a unique name
             image_filename = f"{file_path.stem}_page1.png"
-            image_path = ASSETS_DIR / image_filename
+            image_path = THUMBNAIL_DIR / image_filename
             pil_image.save(image_path, "PNG")
             return str(image_path)
     except Exception as e:
@@ -246,9 +252,7 @@ def main(page: ft.Page):
         page.update()
 
         try:
-            book_candidates = bookinfo.get_books_info_list(
-                str(file_path), api_key=api_key_env
-            )
+            book_candidates = get_books_info_list(str(file_path), api_key=api_key_env)
         except Exception as e:
             print(f"Error fetching book info for {file_path.name}: {e}")
             book_candidates = []
@@ -282,7 +286,7 @@ def main(page: ft.Page):
                 # Use /assets/filename.png for Flet static serving
                 if first_page_image_path and os.path.exists(first_page_image_path):
                     image_filename = Path(first_page_image_path).name
-                    image_src = ASSETS_DIR / image_filename
+                    image_src = THUMBNAIL_DIR / image_filename
                 else:
                     image_src = ASSETS_DIR / "No-image.png"
 
@@ -500,12 +504,5 @@ def main(page: ft.Page):
     )
     page.update()
 
-    input("Press Enter to exit...")
 
-
-if __name__ == "__main__":
-    try:
-        ft.app(target=main)
-    except Exception as e:
-        logging.exception("Fatal error in main loop")
-        raise
+ft.app(target=main)
