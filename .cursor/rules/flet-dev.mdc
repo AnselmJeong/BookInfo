@@ -11,7 +11,6 @@ alwaysApply: false
 2. **Avoid Hallucination of Syntax or Features:**
    - Do not invent or hallucinate any Flet functions, methods, properties, or syntax that are not explicitly documented or supported by the Flet framework as of May 28, 2025.
    - If unsure about a specific Flet feature or implementation, acknowledge the limitation and suggest consulting the official Flet documentation or provide a workaround using confirmed, existing functionality.
-   - For external packages (e.g., `bookinfo`), assume only the described functionality (e.g., fetching book info from Google Books API) and do not hallucinate additional methods or behavior beyond what is specified.
 
 3. **Adhere to Python 3.12+ Syntax and Best Practices:**
    - Write all code using Python 3.12 or later, leveraging modern syntax and features such as type hints (using `typing` module or built-in types), pattern matching (`match`/`case`), and other enhancements introduced in Python 3.12.

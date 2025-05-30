@@ -1,5 +1,5 @@
 [project]
-name = "bookinfo"
+name = "BookInfo"
 version = "0.1.0"
 description = ""
 readme = "README.md"
@@ -18,20 +18,25 @@ dependencies = [
   "tenacity>=9.1.2",
 ]
 
+
 [tool.flet]
 # org name in reverse domain name notation, e.g. "com.mycompany".
 # Combined with project.name to build bundle ID for iOS and Android apps
 org = "com.mycompany"
 
+
 # project display name that is used as an app title on Android and iOS home screens,
 # shown in window titles and about app dialogs on desktop.
-product = "bookInfo"
+product = "Book Renamer"
 
 # company name to display in about app dialogs
 company = "Flet"
 
 # copyright text to display in about app dialogs
 copyright = "Copyright (C) 2025 by Flet"
+
+# Flutter build extra arguments (flet build uses Flutter, not PyInstaller)
+flutter.build_args = ["--dart-define=DOTENV_PATH=.env"]
 
 [tool.flet.app]
 path = "src"

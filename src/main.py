@@ -9,11 +9,16 @@ from core import (
     extract_first_page_image_pdf,
 )
 
+from dotenv import load_dotenv
+
 # --- Ensure assets directory exists ---
 ASSETS_DIR = Path(__file__).parent / "assets"
 
 THUMBNAIL_DIR = Path("/Users/anselm/.BookInfo/assets")
 THUMBNAIL_DIR.mkdir(exist_ok=True)
+
+load_dotenv()
+API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 
 
 # Helper function to extract first page image and save to a temporary file
@@ -129,7 +134,9 @@ def main(page: ft.Page):
     # --- UI Elements ---
     # Left Column
     selected_directory_text = ft.Text("No directory selected.")
-    file_list_view = ft.ListView(expand=1, spacing=5, auto_scroll=True)
+    file_list_view = ft.ListView(
+        expand=1, spacing=5, auto_scroll=True, item_extent=300, divider_thickness=1
+    )
 
     # Right Column
     processing_filename_text = ft.Text(
@@ -175,7 +182,7 @@ def main(page: ft.Page):
                     file_path.name, color=ft.Colors.BLUE, weight=ft.FontWeight.BOLD
                 )
             else:
-                file_list_view.controls[i] = ft.Text(item.value)
+                file_list_view.controls[i] = ft.Text(item.value, size=12)
         file_list_view.update()
 
         # Abbreviate long file names for display
@@ -194,7 +201,7 @@ def main(page: ft.Page):
         page.update()
 
         try:
-            book_candidates = get_books_info_list(str(file_path), api_key=api_key_env)
+            book_candidates = get_books_info_list(str(file_path), api_key=API_KEY)
         except Exception as e:
             print(f"Error fetching book info for {file_path.name}: {e}")
             book_candidates = []
@@ -271,8 +278,11 @@ def main(page: ft.Page):
                         ft.Text(f"Year: {year}"),
                     ],
                     spacing=3,
+                    height=150,  # Adjust as needed, less than card_content height (220) minus button height
+                    scroll=ft.ScrollMode.ADAPTIVE,
                 )
 
+                # Define on_select_candidate here before it's used in the lambda
                 def on_select_candidate(e, selected_info, current_file):
                     new_filename_str = build_new_filename_from_info(
                         selected_info, current_file.suffix
@@ -309,10 +319,24 @@ def main(page: ft.Page):
                     width=180,
                 )
 
+                # This column will hold the scrollable info_column and the button below it
+                right_side_of_card = ft.Column(
+                    [
+                        info_column,  # Now info_column itself is scrollable
+                        ft.Row(
+                            [select_button],
+                            spacing=10,
+                            alignment=ft.MainAxisAlignment.END,
+                        ),
+                    ],
+                    expand=True,
+                    spacing=10,
+                )
+
                 card_content = ft.Container(
                     content=ft.Row(
                         [
-                            ft.Row(
+                            ft.Row(  # Row for image columns
                                 [
                                     ft.Column(
                                         [
@@ -338,19 +362,7 @@ def main(page: ft.Page):
                                 spacing=5,
                             ),
                             ft.VerticalDivider(),
-                            ft.Column(
-                                [
-                                    info_column,
-                                    ft.Row(
-                                        [select_button],
-                                        spacing=10,
-                                        alignment=ft.MainAxisAlignment.END,
-                                        expand=False,
-                                    ),
-                                ],
-                                expand=True,
-                                spacing=10,
-                            ),
+                            right_side_of_card,
                         ],
                         spacing=10,
                         vertical_alignment=ft.CrossAxisAlignment.START,
@@ -430,6 +442,10 @@ def main(page: ft.Page):
 
     right_panel = ft.Column(
         [
+            # ft.Text(
+            #     f"API Key: {API_KEY}",
+            #     weight=ft.FontWeight.BOLD,
+            # ),
             processing_filename_text,
             candidate_cards_column,
         ],
