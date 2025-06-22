@@ -77,7 +77,7 @@ def build_new_filename_from_info(info: dict, original_extension: str) -> str:
     filename_parts.extend([title, first_author])
 
     base_name = " - ".join(filename_parts)
-    base_name = f"{base_name}.{original_extension}"
+    base_name = f"{base_name}{original_extension}"
 
     # Sanitize filename (remove characters not allowed in macOS filenames)
     invalid_chars = '\\/:*?"<>|'
