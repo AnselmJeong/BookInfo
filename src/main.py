@@ -287,15 +287,39 @@ def main(page: ft.Page):
                     new_filename_str = build_new_filename_from_info(
                         selected_info, current_file.suffix
                     )
-                    new_file_path = current_file.with_name(new_filename_str)
+
+                    # Create completed subfolder in the same directory as the original file
+                    completed_dir = current_file.parent / "completed"
+                    completed_dir.mkdir(exist_ok=True)
+
+                    # The new file will be placed in the completed folder
+                    new_file_path = completed_dir / new_filename_str
+
                     try:
-                        current_file.rename(new_file_path)
+                        # First rename the file
+                        temp_renamed_file = current_file.with_name(new_filename_str)
+                        current_file.rename(temp_renamed_file)
+
+                        # Then move the renamed file to completed folder
+                        temp_renamed_file.rename(new_file_path)
+
+                        # Show success message
+                        page.snack_bar = ft.SnackBar(
+                            ft.Text(
+                                f"파일이 성공적으로 리네임되어 completed 폴더로 이동되었습니다: {new_filename_str}"
+                            ),
+                            open=True,
+                            bgcolor=ft.Colors.GREEN,
+                        )
+
                         remove_file_from_list(current_file.name)
                         del current_files_in_dir[current_file_processing_index]
                     except Exception as ex:
-                        print(f"Error renaming file: {ex}")
+                        print(f"Error renaming/moving file: {ex}")
                         page.snack_bar = ft.SnackBar(
-                            ft.Text(f"Error renaming: {ex}"), open=True
+                            ft.Text(f"파일 처리 중 오류 발생: {ex}"),
+                            open=True,
+                            bgcolor=ft.Colors.RED,
                         )
 
                     if current_file_processing_index < len(current_files_in_dir):
@@ -303,9 +327,9 @@ def main(page: ft.Page):
                             current_files_in_dir[current_file_processing_index]
                         )
                     else:
-                        processing_filename_text.value = "All files processed."
+                        processing_filename_text.value = "모든 파일 처리 완료."
                         candidate_cards_column.controls.clear()
-                        candidate_cards_column.controls.append(ft.Text("Done!"))
+                        candidate_cards_column.controls.append(ft.Text("완료!"))
                         cleanup_temp_images()
                     page.update()
 
@@ -381,7 +405,7 @@ def main(page: ft.Page):
         # After all cards, add the skip button at the end if there were candidates
         if book_candidates:
             skip_button = ft.ElevatedButton(
-                "Cancel (Skip File)",
+                "건너뛰기 (파일 스킵)",
                 on_click=on_cancel_file,
                 bgcolor=ft.Colors.ORANGE,
                 color=ft.Colors.WHITE,
@@ -397,16 +421,22 @@ def main(page: ft.Page):
     def on_cancel_file(e):
         nonlocal current_file_processing_index
         if 0 <= current_file_processing_index < len(current_files_in_dir):
-            remove_file_from_list(
-                current_files_in_dir[current_file_processing_index].name
+            # Show message that file was skipped
+            skipped_filename = current_files_in_dir[current_file_processing_index].name
+            page.snack_bar = ft.SnackBar(
+                ft.Text(f"파일을 건너뛰었습니다: {skipped_filename}"),
+                open=True,
+                bgcolor=ft.Colors.ORANGE,
             )
+
+            remove_file_from_list(skipped_filename)
             del current_files_in_dir[current_file_processing_index]
         if current_file_processing_index < len(current_files_in_dir):
             process_file(current_files_in_dir[current_file_processing_index])
         else:
-            processing_filename_text.value = "All files processed."
+            processing_filename_text.value = "모든 파일 처리 완료."
             candidate_cards_column.controls.clear()
-            candidate_cards_column.controls.append(ft.Text("Done!"))
+            candidate_cards_column.controls.append(ft.Text("완료!"))
             cleanup_temp_images()
         page.update()
 
